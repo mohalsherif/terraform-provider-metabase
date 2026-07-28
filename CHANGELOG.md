@@ -1,5 +1,9 @@
 ## Unreleased
 
+NEW FEATURES:
+
+- Add the `metabase_glossary_term` resource, managing entries in the Metabase glossary (`/api/glossary`).
+
 BUG FIXES:
 
 - Treat the map and list representations of `template-tags` in a `metabase_card` query as equivalent.

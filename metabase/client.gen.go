@@ -246,6 +246,15 @@ type CreateDatabaseBody struct {
 	Name string `json:"name"`
 }
 
+// CreateGlossaryTermBody The payload used to create a new glossary term.
+type CreateGlossaryTermBody struct {
+	// Definition The definition of the term.
+	Definition string `json:"definition"`
+
+	// Term The term being defined.
+	Term string `json:"term"`
+}
+
 // CreatePermissionsGroupBody The payload used to create a new permissions group.
 type CreatePermissionsGroupBody struct {
 	// Name A user-displayable name for the group.
@@ -447,6 +456,24 @@ type Field struct {
 
 	// TableId The ID of the parent table.
 	TableId int `json:"table_id"`
+}
+
+// GlossaryTerm A term defined in the Metabase glossary.
+type GlossaryTerm struct {
+	// Definition The definition of the term.
+	Definition string `json:"definition"`
+
+	// Id The ID of the glossary term.
+	Id int `json:"id"`
+
+	// Term The term being defined.
+	Term string `json:"term"`
+}
+
+// GlossaryTermList The list of glossary terms returned by the Metabase API.
+type GlossaryTermList struct {
+	// Data The list of glossary terms.
+	Data []GlossaryTerm `json:"data"`
 }
 
 // PermissionsGraph The entire permission graph for databases.
@@ -658,6 +685,15 @@ type UpdateFieldBody struct {
 	SemanticType *string `json:"semantic_type"`
 }
 
+// UpdateGlossaryTermBody The payload used to update an existing glossary term.
+type UpdateGlossaryTermBody struct {
+	// Definition The definition of the term.
+	Definition string `json:"definition"`
+
+	// Term The term being defined.
+	Term string `json:"term"`
+}
+
 // UpdatePermissionsGroupBody The payload used to update an existing permissions group.
 type UpdatePermissionsGroupBody struct {
 	// Name A user-displayable name for the group.
@@ -753,6 +789,12 @@ type UploadContentTranslationDictionaryMultipartRequestBody UploadContentTransla
 
 // UpdateFieldJSONRequestBody defines body for UpdateField for application/json ContentType.
 type UpdateFieldJSONRequestBody = UpdateFieldBody
+
+// CreateGlossaryTermJSONRequestBody defines body for CreateGlossaryTerm for application/json ContentType.
+type CreateGlossaryTermJSONRequestBody = CreateGlossaryTermBody
+
+// UpdateGlossaryTermJSONRequestBody defines body for UpdateGlossaryTerm for application/json ContentType.
+type UpdateGlossaryTermJSONRequestBody = UpdateGlossaryTermBody
 
 // ReplacePermissionsGraphJSONRequestBody defines body for ReplacePermissionsGraph for application/json ContentType.
 type ReplacePermissionsGraphJSONRequestBody = PermissionsGraph
@@ -1603,6 +1645,22 @@ type ClientInterface interface {
 
 	UpdateField(ctx context.Context, fieldId int, body UpdateFieldJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListGlossaryTerms request
+	ListGlossaryTerms(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateGlossaryTermWithBody request with any body
+	CreateGlossaryTermWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateGlossaryTerm(ctx context.Context, body CreateGlossaryTermJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteGlossaryTerm request
+	DeleteGlossaryTerm(ctx context.Context, termId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateGlossaryTermWithBody request with any body
+	UpdateGlossaryTermWithBody(ctx context.Context, termId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateGlossaryTerm(ctx context.Context, termId int, body UpdateGlossaryTermJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetPermissionsGraph request
 	GetPermissionsGraph(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2042,6 +2100,78 @@ func (c *Client) UpdateFieldWithBody(ctx context.Context, fieldId int, contentTy
 
 func (c *Client) UpdateField(ctx context.Context, fieldId int, body UpdateFieldJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateFieldRequest(c.Server, fieldId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListGlossaryTerms(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListGlossaryTermsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateGlossaryTermWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateGlossaryTermRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateGlossaryTerm(ctx context.Context, body CreateGlossaryTermJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateGlossaryTermRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteGlossaryTerm(ctx context.Context, termId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteGlossaryTermRequest(c.Server, termId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateGlossaryTermWithBody(ctx context.Context, termId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateGlossaryTermRequestWithBody(c.Server, termId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateGlossaryTerm(ctx context.Context, termId int, body UpdateGlossaryTermJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateGlossaryTermRequest(c.Server, termId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3240,6 +3370,154 @@ func NewUpdateFieldRequestWithBody(server string, fieldId int, contentType strin
 	return req, nil
 }
 
+// NewListGlossaryTermsRequest generates requests for ListGlossaryTerms
+func NewListGlossaryTermsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/glossary")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateGlossaryTermRequest calls the generic CreateGlossaryTerm builder with application/json body
+func NewCreateGlossaryTermRequest(server string, body CreateGlossaryTermJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateGlossaryTermRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateGlossaryTermRequestWithBody generates requests for CreateGlossaryTerm with any type of body
+func NewCreateGlossaryTermRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/glossary")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteGlossaryTermRequest generates requests for DeleteGlossaryTerm
+func NewDeleteGlossaryTermRequest(server string, termId int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "termId", runtime.ParamLocationPath, termId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/glossary/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateGlossaryTermRequest calls the generic UpdateGlossaryTerm builder with application/json body
+func NewUpdateGlossaryTermRequest(server string, termId int, body UpdateGlossaryTermJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateGlossaryTermRequestWithBody(server, termId, "application/json", bodyReader)
+}
+
+// NewUpdateGlossaryTermRequestWithBody generates requests for UpdateGlossaryTerm with any type of body
+func NewUpdateGlossaryTermRequestWithBody(server string, termId int, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "termId", runtime.ParamLocationPath, termId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/glossary/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetPermissionsGraphRequest generates requests for GetPermissionsGraph
 func NewGetPermissionsGraphRequest(server string) (*http.Request, error) {
 	var err error
@@ -3766,6 +4044,22 @@ type ClientWithResponsesInterface interface {
 	UpdateFieldWithBodyWithResponse(ctx context.Context, fieldId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateFieldResponse, error)
 
 	UpdateFieldWithResponse(ctx context.Context, fieldId int, body UpdateFieldJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateFieldResponse, error)
+
+	// ListGlossaryTermsWithResponse request
+	ListGlossaryTermsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListGlossaryTermsResponse, error)
+
+	// CreateGlossaryTermWithBodyWithResponse request with any body
+	CreateGlossaryTermWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateGlossaryTermResponse, error)
+
+	CreateGlossaryTermWithResponse(ctx context.Context, body CreateGlossaryTermJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateGlossaryTermResponse, error)
+
+	// DeleteGlossaryTermWithResponse request
+	DeleteGlossaryTermWithResponse(ctx context.Context, termId int, reqEditors ...RequestEditorFn) (*DeleteGlossaryTermResponse, error)
+
+	// UpdateGlossaryTermWithBodyWithResponse request with any body
+	UpdateGlossaryTermWithBodyWithResponse(ctx context.Context, termId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateGlossaryTermResponse, error)
+
+	UpdateGlossaryTermWithResponse(ctx context.Context, termId int, body UpdateGlossaryTermJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateGlossaryTermResponse, error)
 
 	// GetPermissionsGraphWithResponse request
 	GetPermissionsGraphWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPermissionsGraphResponse, error)
@@ -4337,6 +4631,93 @@ func (r UpdateFieldResponse) StatusCode() int {
 	return 0
 }
 
+type ListGlossaryTermsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GlossaryTermList
+}
+
+// Status returns HTTPResponse.Status
+func (r ListGlossaryTermsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListGlossaryTermsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateGlossaryTermResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GlossaryTerm
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateGlossaryTermResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateGlossaryTermResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteGlossaryTermResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteGlossaryTermResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteGlossaryTermResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateGlossaryTermResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GlossaryTerm
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateGlossaryTermResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateGlossaryTermResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetPermissionsGraphResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4850,6 +5231,58 @@ func (c *ClientWithResponses) UpdateFieldWithResponse(ctx context.Context, field
 		return nil, err
 	}
 	return ParseUpdateFieldResponse(rsp)
+}
+
+// ListGlossaryTermsWithResponse request returning *ListGlossaryTermsResponse
+func (c *ClientWithResponses) ListGlossaryTermsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListGlossaryTermsResponse, error) {
+	rsp, err := c.ListGlossaryTerms(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListGlossaryTermsResponse(rsp)
+}
+
+// CreateGlossaryTermWithBodyWithResponse request with arbitrary body returning *CreateGlossaryTermResponse
+func (c *ClientWithResponses) CreateGlossaryTermWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateGlossaryTermResponse, error) {
+	rsp, err := c.CreateGlossaryTermWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateGlossaryTermResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateGlossaryTermWithResponse(ctx context.Context, body CreateGlossaryTermJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateGlossaryTermResponse, error) {
+	rsp, err := c.CreateGlossaryTerm(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateGlossaryTermResponse(rsp)
+}
+
+// DeleteGlossaryTermWithResponse request returning *DeleteGlossaryTermResponse
+func (c *ClientWithResponses) DeleteGlossaryTermWithResponse(ctx context.Context, termId int, reqEditors ...RequestEditorFn) (*DeleteGlossaryTermResponse, error) {
+	rsp, err := c.DeleteGlossaryTerm(ctx, termId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteGlossaryTermResponse(rsp)
+}
+
+// UpdateGlossaryTermWithBodyWithResponse request with arbitrary body returning *UpdateGlossaryTermResponse
+func (c *ClientWithResponses) UpdateGlossaryTermWithBodyWithResponse(ctx context.Context, termId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateGlossaryTermResponse, error) {
+	rsp, err := c.UpdateGlossaryTermWithBody(ctx, termId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateGlossaryTermResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateGlossaryTermWithResponse(ctx context.Context, termId int, body UpdateGlossaryTermJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateGlossaryTermResponse, error) {
+	rsp, err := c.UpdateGlossaryTerm(ctx, termId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateGlossaryTermResponse(rsp)
 }
 
 // GetPermissionsGraphWithResponse request returning *GetPermissionsGraphResponse
@@ -5570,6 +6003,100 @@ func ParseUpdateFieldResponse(rsp *http.Response) (*UpdateFieldResponse, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Field
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListGlossaryTermsResponse parses an HTTP response from a ListGlossaryTermsWithResponse call
+func ParseListGlossaryTermsResponse(rsp *http.Response) (*ListGlossaryTermsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListGlossaryTermsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GlossaryTermList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateGlossaryTermResponse parses an HTTP response from a CreateGlossaryTermWithResponse call
+func ParseCreateGlossaryTermResponse(rsp *http.Response) (*CreateGlossaryTermResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateGlossaryTermResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GlossaryTerm
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteGlossaryTermResponse parses an HTTP response from a DeleteGlossaryTermWithResponse call
+func ParseDeleteGlossaryTermResponse(rsp *http.Response) (*DeleteGlossaryTermResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteGlossaryTermResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseUpdateGlossaryTermResponse parses an HTTP response from a UpdateGlossaryTermWithResponse call
+func ParseUpdateGlossaryTermResponse(rsp *http.Response) (*UpdateGlossaryTermResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateGlossaryTermResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GlossaryTerm
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
