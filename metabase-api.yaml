@@ -447,6 +447,74 @@ paths:
               schema:
                 $ref: "#/components/schemas/Field"
 
+  /glossary:
+    get:
+      operationId: listGlossaryTerms
+      description: Lists all the glossary terms, sorted alphabetically.
+      responses:
+        200:
+          description: The glossary terms were successfully retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GlossaryTermList"
+
+    post:
+      operationId: createGlossaryTerm
+      description: Creates a new glossary term.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGlossaryTermBody"
+      responses:
+        200:
+          description: The glossary term was successfully created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GlossaryTerm"
+
+  /glossary/{termId}:
+    put:
+      operationId: updateGlossaryTerm
+      description: Updates a single glossary term.
+      parameters:
+        - in: path
+          name: termId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the glossary term.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGlossaryTermBody"
+      responses:
+        200:
+          description: The glossary term was successfully updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GlossaryTerm"
+
+    delete:
+      operationId: deleteGlossaryTerm
+      description: Deletes a single glossary term.
+      parameters:
+        - in: path
+          name: termId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the glossary term.
+      responses:
+        204:
+          description: The glossary term was successfully deleted.
+
   /permissions/graph:
     get:
       operationId: getPermissionsGraph
@@ -1333,6 +1401,61 @@ components:
           type: string
           description: The description of the field.
           nullable: true
+    # Glossary.
+    GlossaryTerm:
+      type: object
+      description: A term defined in the Metabase glossary.
+      properties:
+        id:
+          type: integer
+          description: The ID of the glossary term.
+        term:
+          type: string
+          description: The term being defined.
+        definition:
+          type: string
+          description: The definition of the term.
+      required:
+        - id
+        - term
+        - definition
+    GlossaryTermList:
+      type: object
+      description: The list of glossary terms returned by the Metabase API.
+      properties:
+        data:
+          type: array
+          description: The list of glossary terms.
+          items:
+            $ref: "#/components/schemas/GlossaryTerm"
+      required:
+        - data
+    CreateGlossaryTermBody:
+      type: object
+      description: The payload used to create a new glossary term.
+      properties:
+        term:
+          type: string
+          description: The term being defined.
+        definition:
+          type: string
+          description: The definition of the term.
+      required:
+        - term
+        - definition
+    UpdateGlossaryTermBody:
+      type: object
+      description: The payload used to update an existing glossary term.
+      properties:
+        term:
+          type: string
+          description: The term being defined.
+        definition:
+          type: string
+          description: The definition of the term.
+      required:
+        - term
+        - definition
     # Permissions group.
     PermissionsGroup:
       type: object

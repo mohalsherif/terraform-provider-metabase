@@ -152,6 +152,38 @@ func (r *DeleteDatabaseResponse) HasExpectedStatusWithoutExpectedBody() bool {
 	return false
 }
 
+func (r *ListGlossaryTermsResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *ListGlossaryTermsResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}
+
+func (r *CreateGlossaryTermResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *CreateGlossaryTermResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}
+
+func (r *UpdateGlossaryTermResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *UpdateGlossaryTermResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}
+
+func (r *DeleteGlossaryTermResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *DeleteGlossaryTermResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return false
+}
+
 func (r *GetPermissionsGraphResponse) BodyString() string {
 	return string(r.Body)
 }
