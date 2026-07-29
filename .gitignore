@@ -4,3 +4,4 @@
 .test-sample-schema
 mbtf
 terraform-provider-metabase
+dist/

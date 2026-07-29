@@ -25,6 +25,35 @@ jobs:
       - name: Build mbtf
         run: make mbtf
 
+  release-config:
+    name: 📦 Validate release config
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      # Catches a broken .goreleaser.yml here rather than on a pushed tag,
+      # where recovering means deleting and re-pushing the tag.
+      - name: Check GoReleaser config
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: check
+
+      - name: Build a snapshot release
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: build --snapshot --clean --single-target
+
   test:
     name: 🧪 Run tests (Metabase ${{ matrix.metabase_version }})
     runs-on: ubuntu-latest
