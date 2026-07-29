@@ -1,5 +1,10 @@
 name: Release
 
+# Publishing to the Terraform Registry is release-driven: the Registry watches
+# this repository through a webhook and ingests every GitHub release whose tag
+# is a `v`-prefixed semver and whose assets are the signed set it expects
+# (zips + SHA256SUMS + SHA256SUMS.sig + manifest.json). This workflow produces
+# exactly that set, so pushing the tag is the only manual step.
 on:
   push:
     tags:
@@ -10,20 +15,33 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   goreleaser:
     name: 📦 Release
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check signing secrets are configured
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          if [ -z "$GPG_PRIVATE_KEY" ]; then
+            echo "::error::Secret GPG_PRIVATE_KEY is not set. The Terraform Registry rejects unsigned releases — see RELEASING.md for how to generate the key and add it (with PASSPHRASE) to this repository's Actions secrets."
+            exit 1
+          fi
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Allow goreleaser to access older tag information.
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
 
@@ -35,10 +53,31 @@ jobs:
           passphrase: ${{ secrets.PASSPHRASE }}
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v6
         with:
-          args: release --rm-dist
+          version: "~> v2"
+          args: release --clean
         env:
           # GitHub sets the GITHUB_TOKEN secret automatically.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+
+      - name: Verify Terraform Registry assets
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          cd dist
+          for f in \
+            "terraform-provider-metabase_${version}_SHA256SUMS" \
+            "terraform-provider-metabase_${version}_SHA256SUMS.sig" \
+            "terraform-provider-metabase_${version}_manifest.json" \
+            "terraform-provider-metabase_${version}_linux_amd64.zip" \
+            "terraform-provider-metabase_${version}_darwin_arm64.zip"; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Missing release asset $f — the Terraform Registry would reject this version."
+              exit 1
+            fi
+            echo "ok: $f"
+          done
