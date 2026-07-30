@@ -274,6 +274,75 @@ func normalizeCardTemplateTags(card map[string]any, existingCard map[string]any)
 	normalizeTemplateTagsValue(card["dataset_query"], existingCard["dataset_query"])
 }
 
+// The MBQL ("lib") attributes that Metabase manages itself and that carry no meaning for the definition of a card. They
+// are either bookkeeping flags set while converting a query between the legacy and pMBQL formats, or node identifiers
+// minted by the server. Metabase adds, drops and regenerates them at will, so comparing them against the definition
+// provided by the user produces diffs that no configuration change can ever settle.
+// `lib/type` is deliberately absent: it identifies the kind of query or stage and is part of the definition.
+var nonSemanticLibAttributes = map[string]bool{
+	"lib.convert/converted?":                            true,
+	"lib/transformation-added-base-type":                true,
+	"lib/uuid":                                          true,
+	"metabase.lib.query/transformation-added-base-type": true,
+}
+
+// Recursively makes the non-semantic `lib` attributes in the value returned by the Metabase API match those in the
+// existing value, coming from the Terraform plan or state. An attribute is copied over when the existing value defines
+// it, and removed when it does not, such that the two can be compared on their meaningful attributes alone.
+// Nodes for which the existing value is not an object are left untouched: there is nothing to align them with, and the
+// surrounding comparison already differs.
+func normalizeLibMetadataValue(value any, existingValue any) any {
+	switch v := value.(type) {
+	case map[string]any:
+		existingMap, ok := existingValue.(map[string]any)
+		if !ok {
+			return v
+		}
+
+		for key, child := range v {
+			v[key] = normalizeLibMetadataValue(child, existingMap[key])
+		}
+
+		for key := range nonSemanticLibAttributes {
+			if existing, inExisting := existingMap[key]; inExisting {
+				v[key] = existing
+			} else {
+				delete(v, key)
+			}
+		}
+
+		return v
+	case []any:
+		existingList, ok := existingValue.([]any)
+		if !ok {
+			return v
+		}
+
+		for i, child := range v {
+			var existingChild any
+			if i < len(existingList) {
+				existingChild = existingList[i]
+			}
+
+			v[i] = normalizeLibMetadataValue(child, existingChild)
+		}
+
+		return v
+	default:
+		return value
+	}
+}
+
+// Aligns the non-semantic `lib` attributes in the query of the card returned by the Metabase API with those in the
+// existing card definition, so that Metabase's own query bookkeeping does not show up as a permanent diff.
+func normalizeCardLibMetadata(card map[string]any, existingCard map[string]any) {
+	if existingCard == nil {
+		return
+	}
+
+	normalizeLibMetadataValue(card["dataset_query"], existingCard["dataset_query"])
+}
+
 // Updates the given `CardResourceModel` from the `Card` returned by the Metabase API.
 func updateModelFromCardBytes(cardBytes []byte, data *CardResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
@@ -313,6 +382,7 @@ func updateModelFromCardBytes(cardBytes []byte, data *CardResourceModel) diag.Di
 
 	cleanCardQuery(card, existingCard)
 	normalizeCardTemplateTags(card, existingCard)
+	normalizeCardLibMetadata(card, existingCard)
 
 	// If the existing card is different from the response from the API, updates the JSON string by remarshalling the
 	// "cleaned" response to a string. This should only happen:

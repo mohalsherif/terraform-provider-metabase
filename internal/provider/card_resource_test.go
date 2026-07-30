@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -262,6 +263,119 @@ func TestUpdateModelFromCardBytesKeepsTemplateTagsWithoutExistingCard(t *testing
 		t.Fatalf("Unexpected diagnostics: %s", diags)
 	}
 	checkCardJson(t, data, responseJson)
+}
+
+// Returns the JSON definition of a card whose query carries the given extra attributes on `dataset_query`, and the
+// given attributes on a field reference nested in a stage. Both are places where Metabase stores its own MBQL
+// bookkeeping.
+func makeLibMetadataCardJson(queryAttributes string, fieldAttributes string) string {
+	return fmt.Sprintf(`{
+  "name": "Card with lib metadata",
+  "query_type": "query",
+  "dataset_query": {
+    "lib/type": "mbql/query",
+    "database": 1,
+    %s
+    "stages": [
+      {
+        "lib/type": "mbql.stage/mbql",
+        "source-table": 1,
+        "filters": [
+          [
+            "field",
+            {
+              "base-type": "type/Text"%s
+            },
+            42
+          ]
+        ]
+      }
+    ]
+  },
+  "display": "table"
+}`, queryAttributes, fieldAttributes)
+}
+
+// Metabase drops the conversion flag it sets while translating a query between the legacy and pMBQL formats, so a
+// definition that carries it would otherwise never converge.
+func TestUpdateModelFromCardBytesKeepsConversionFlag(t *testing.T) {
+	existingJson := makeLibMetadataCardJson(`"lib.convert/converted?": true,`, "")
+	responseJson := makeLibMetadataCardJson("", "")
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, existingJson)
+}
+
+// Node identifiers are minted by the server, so the value in the definition is never the one that comes back.
+func TestUpdateModelFromCardBytesIgnoresRegeneratedLibUuid(t *testing.T) {
+	existingJson := makeLibMetadataCardJson("", `, "lib/uuid": "aca61c2f-28c0-4402-b888-42d8752cde6d"`)
+	responseJson := makeLibMetadataCardJson("", `, "lib/uuid": "33712201-48d8-405f-bad6-29c965acabf0"`)
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, existingJson)
+}
+
+// Metabase also adds base-type bookkeeping that no definition asked for.
+func TestUpdateModelFromCardBytesIgnoresAddedBaseTypeMarkers(t *testing.T) {
+	existingJson := makeLibMetadataCardJson("", "")
+	responseJson := makeLibMetadataCardJson(
+		`"metabase.lib.query/transformation-added-base-type": true,`,
+		`, "lib/transformation-added-base-type": true`,
+	)
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, existingJson)
+}
+
+// `lib/type` describes the query itself, so a change to it must still reach the state.
+func TestUpdateModelFromCardBytesUpdatesLibType(t *testing.T) {
+	existingJson := makeLibMetadataCardJson("", "")
+	responseJson := strings.Replace(existingJson, `"lib/type": "mbql.stage/mbql"`, `"lib/type": "mbql.stage/native"`, 1)
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, responseJson)
+}
+
+// A real modification alongside the ignored metadata is still reported, and keeps the definition's own metadata values
+// so that the resulting state does not carry a diff of its own.
+func TestUpdateModelFromCardBytesUpdatesRealChangeAlongsideLibMetadata(t *testing.T) {
+	existingJson := makeLibMetadataCardJson(
+		`"lib.convert/converted?": true,`,
+		`, "lib/uuid": "aca61c2f-28c0-4402-b888-42d8752cde6d"`,
+	)
+	responseJson := strings.Replace(
+		makeLibMetadataCardJson("", `, "lib/uuid": "33712201-48d8-405f-bad6-29c965acabf0"`),
+		`"display": "table"`, `"display": "bar"`, 1,
+	)
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	expectedJson := strings.Replace(existingJson, `"display": "table"`, `"display": "bar"`, 1)
+	checkCardJson(t, data, expectedJson)
 }
 
 func TestAccCardResource(t *testing.T) {
