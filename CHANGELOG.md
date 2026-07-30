@@ -7,6 +7,7 @@ NEW FEATURES:
 BUG FIXES:
 
 - Treat the map and list representations of `template-tags` in a `metabase_card` query as equivalent.
+- Ignore the MBQL bookkeeping attributes Metabase manages itself in a `metabase_card` query — `lib.convert/converted?`, `lib/uuid`, `lib/transformation-added-base-type` and `metabase.lib.query/transformation-added-base-type`. Metabase adds, drops and regenerates them independently of the card definition, so a definition carrying (or missing) them produced a diff on every plan that no configuration change could settle. `lib/type` is unaffected, as it is part of the definition.
 
 ## 0.14.2 (2026-05-29)
 
