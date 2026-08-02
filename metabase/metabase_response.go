@@ -184,6 +184,38 @@ func (r *DeleteGlossaryTermResponse) HasExpectedStatusWithoutExpectedBody() bool
 	return false
 }
 
+func (r *ListNativeQuerySnippetsResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *ListNativeQuerySnippetsResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}
+
+func (r *CreateNativeQuerySnippetResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *CreateNativeQuerySnippetResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}
+
+func (r *GetNativeQuerySnippetResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *GetNativeQuerySnippetResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}
+
+func (r *UpdateNativeQuerySnippetResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *UpdateNativeQuerySnippetResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}
+
 func (r *GetPermissionsGraphResponse) BodyString() string {
 	return string(r.Body)
 }

@@ -79,6 +79,7 @@ set_up_metabase () {
     --name ${METABASE_CONTAINER_NAME} \
     --network ${DOCKER_NETWORK} \
     -p ${METABASE_PORT}:${METABASE_PORT} \
+    -e MB_JETTY_PORT=${METABASE_PORT} \
     ${METABASE_IMAGE}:${METABASE_VERSION} > /dev/null
 }
 
