@@ -255,6 +255,21 @@ type CreateGlossaryTermBody struct {
 	Term string `json:"term"`
 }
 
+// CreateNativeQuerySnippetBody The payload used to create a new native query snippet.
+type CreateNativeQuerySnippetBody struct {
+	// CollectionId The ID of the snippet collection containing the snippet.
+	CollectionId *int `json:"collection_id,omitempty"`
+
+	// Content The SQL fragment.
+	Content string `json:"content"`
+
+	// Description The description of the snippet.
+	Description *string `json:"description,omitempty"`
+
+	// Name The name of the snippet, unique across the instance.
+	Name string `json:"name"`
+}
+
 // CreatePermissionsGroupBody The payload used to create a new permissions group.
 type CreatePermissionsGroupBody struct {
 	// Name A user-displayable name for the group.
@@ -476,6 +491,27 @@ type GlossaryTermList struct {
 	Data []GlossaryTerm `json:"data"`
 }
 
+// NativeQuerySnippet A reusable SQL fragment referenced from native queries as `{{snippet: name}}`.
+type NativeQuerySnippet struct {
+	// Archived Whether the snippet is archived.
+	Archived bool `json:"archived"`
+
+	// CollectionId The ID of the snippet collection containing the snippet.
+	CollectionId *int `json:"collection_id"`
+
+	// Content The SQL fragment.
+	Content string `json:"content"`
+
+	// Description The description of the snippet.
+	Description *string `json:"description"`
+
+	// Id The ID of the snippet.
+	Id int `json:"id"`
+
+	// Name The name of the snippet, unique across the instance.
+	Name string `json:"name"`
+}
+
 // PermissionsGraph The entire permission graph for databases.
 type PermissionsGraph struct {
 	// Groups A map where keys are group IDs and values are permissions for this group.
@@ -694,6 +730,24 @@ type UpdateGlossaryTermBody struct {
 	Term string `json:"term"`
 }
 
+// UpdateNativeQuerySnippetBody The payload used to update an existing native query snippet. Only the provided fields are changed.
+type UpdateNativeQuerySnippetBody struct {
+	// Archived Whether the snippet is archived.
+	Archived *bool `json:"archived,omitempty"`
+
+	// CollectionId The ID of the snippet collection containing the snippet.
+	CollectionId *int `json:"collection_id,omitempty"`
+
+	// Content The SQL fragment.
+	Content *string `json:"content,omitempty"`
+
+	// Description The description of the snippet.
+	Description *string `json:"description,omitempty"`
+
+	// Name The name of the snippet, unique across the instance.
+	Name *string `json:"name,omitempty"`
+}
+
 // UpdatePermissionsGroupBody The payload used to update an existing permissions group.
 type UpdatePermissionsGroupBody struct {
 	// Name A user-displayable name for the group.
@@ -795,6 +849,12 @@ type CreateGlossaryTermJSONRequestBody = CreateGlossaryTermBody
 
 // UpdateGlossaryTermJSONRequestBody defines body for UpdateGlossaryTerm for application/json ContentType.
 type UpdateGlossaryTermJSONRequestBody = UpdateGlossaryTermBody
+
+// CreateNativeQuerySnippetJSONRequestBody defines body for CreateNativeQuerySnippet for application/json ContentType.
+type CreateNativeQuerySnippetJSONRequestBody = CreateNativeQuerySnippetBody
+
+// UpdateNativeQuerySnippetJSONRequestBody defines body for UpdateNativeQuerySnippet for application/json ContentType.
+type UpdateNativeQuerySnippetJSONRequestBody = UpdateNativeQuerySnippetBody
 
 // ReplacePermissionsGraphJSONRequestBody defines body for ReplacePermissionsGraph for application/json ContentType.
 type ReplacePermissionsGraphJSONRequestBody = PermissionsGraph
@@ -1661,6 +1721,22 @@ type ClientInterface interface {
 
 	UpdateGlossaryTerm(ctx context.Context, termId int, body UpdateGlossaryTermJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListNativeQuerySnippets request
+	ListNativeQuerySnippets(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateNativeQuerySnippetWithBody request with any body
+	CreateNativeQuerySnippetWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateNativeQuerySnippet(ctx context.Context, body CreateNativeQuerySnippetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetNativeQuerySnippet request
+	GetNativeQuerySnippet(ctx context.Context, snippetId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateNativeQuerySnippetWithBody request with any body
+	UpdateNativeQuerySnippetWithBody(ctx context.Context, snippetId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateNativeQuerySnippet(ctx context.Context, snippetId int, body UpdateNativeQuerySnippetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetPermissionsGraph request
 	GetPermissionsGraph(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2172,6 +2248,78 @@ func (c *Client) UpdateGlossaryTermWithBody(ctx context.Context, termId int, con
 
 func (c *Client) UpdateGlossaryTerm(ctx context.Context, termId int, body UpdateGlossaryTermJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateGlossaryTermRequest(c.Server, termId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListNativeQuerySnippets(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListNativeQuerySnippetsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateNativeQuerySnippetWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNativeQuerySnippetRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateNativeQuerySnippet(ctx context.Context, body CreateNativeQuerySnippetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateNativeQuerySnippetRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetNativeQuerySnippet(ctx context.Context, snippetId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetNativeQuerySnippetRequest(c.Server, snippetId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateNativeQuerySnippetWithBody(ctx context.Context, snippetId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNativeQuerySnippetRequestWithBody(c.Server, snippetId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateNativeQuerySnippet(ctx context.Context, snippetId int, body UpdateNativeQuerySnippetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateNativeQuerySnippetRequest(c.Server, snippetId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3518,6 +3666,154 @@ func NewUpdateGlossaryTermRequestWithBody(server string, termId int, contentType
 	return req, nil
 }
 
+// NewListNativeQuerySnippetsRequest generates requests for ListNativeQuerySnippets
+func NewListNativeQuerySnippetsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/native-query-snippet")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateNativeQuerySnippetRequest calls the generic CreateNativeQuerySnippet builder with application/json body
+func NewCreateNativeQuerySnippetRequest(server string, body CreateNativeQuerySnippetJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateNativeQuerySnippetRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateNativeQuerySnippetRequestWithBody generates requests for CreateNativeQuerySnippet with any type of body
+func NewCreateNativeQuerySnippetRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/native-query-snippet")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetNativeQuerySnippetRequest generates requests for GetNativeQuerySnippet
+func NewGetNativeQuerySnippetRequest(server string, snippetId int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "snippetId", runtime.ParamLocationPath, snippetId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/native-query-snippet/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateNativeQuerySnippetRequest calls the generic UpdateNativeQuerySnippet builder with application/json body
+func NewUpdateNativeQuerySnippetRequest(server string, snippetId int, body UpdateNativeQuerySnippetJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateNativeQuerySnippetRequestWithBody(server, snippetId, "application/json", bodyReader)
+}
+
+// NewUpdateNativeQuerySnippetRequestWithBody generates requests for UpdateNativeQuerySnippet with any type of body
+func NewUpdateNativeQuerySnippetRequestWithBody(server string, snippetId int, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "snippetId", runtime.ParamLocationPath, snippetId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/native-query-snippet/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetPermissionsGraphRequest generates requests for GetPermissionsGraph
 func NewGetPermissionsGraphRequest(server string) (*http.Request, error) {
 	var err error
@@ -4060,6 +4356,22 @@ type ClientWithResponsesInterface interface {
 	UpdateGlossaryTermWithBodyWithResponse(ctx context.Context, termId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateGlossaryTermResponse, error)
 
 	UpdateGlossaryTermWithResponse(ctx context.Context, termId int, body UpdateGlossaryTermJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateGlossaryTermResponse, error)
+
+	// ListNativeQuerySnippetsWithResponse request
+	ListNativeQuerySnippetsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListNativeQuerySnippetsResponse, error)
+
+	// CreateNativeQuerySnippetWithBodyWithResponse request with any body
+	CreateNativeQuerySnippetWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNativeQuerySnippetResponse, error)
+
+	CreateNativeQuerySnippetWithResponse(ctx context.Context, body CreateNativeQuerySnippetJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNativeQuerySnippetResponse, error)
+
+	// GetNativeQuerySnippetWithResponse request
+	GetNativeQuerySnippetWithResponse(ctx context.Context, snippetId int, reqEditors ...RequestEditorFn) (*GetNativeQuerySnippetResponse, error)
+
+	// UpdateNativeQuerySnippetWithBodyWithResponse request with any body
+	UpdateNativeQuerySnippetWithBodyWithResponse(ctx context.Context, snippetId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNativeQuerySnippetResponse, error)
+
+	UpdateNativeQuerySnippetWithResponse(ctx context.Context, snippetId int, body UpdateNativeQuerySnippetJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNativeQuerySnippetResponse, error)
 
 	// GetPermissionsGraphWithResponse request
 	GetPermissionsGraphWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPermissionsGraphResponse, error)
@@ -4718,6 +5030,94 @@ func (r UpdateGlossaryTermResponse) StatusCode() int {
 	return 0
 }
 
+type ListNativeQuerySnippetsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]NativeQuerySnippet
+}
+
+// Status returns HTTPResponse.Status
+func (r ListNativeQuerySnippetsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListNativeQuerySnippetsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateNativeQuerySnippetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *NativeQuerySnippet
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateNativeQuerySnippetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateNativeQuerySnippetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetNativeQuerySnippetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *NativeQuerySnippet
+}
+
+// Status returns HTTPResponse.Status
+func (r GetNativeQuerySnippetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetNativeQuerySnippetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateNativeQuerySnippetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *NativeQuerySnippet
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateNativeQuerySnippetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateNativeQuerySnippetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetPermissionsGraphResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -5283,6 +5683,58 @@ func (c *ClientWithResponses) UpdateGlossaryTermWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseUpdateGlossaryTermResponse(rsp)
+}
+
+// ListNativeQuerySnippetsWithResponse request returning *ListNativeQuerySnippetsResponse
+func (c *ClientWithResponses) ListNativeQuerySnippetsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListNativeQuerySnippetsResponse, error) {
+	rsp, err := c.ListNativeQuerySnippets(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListNativeQuerySnippetsResponse(rsp)
+}
+
+// CreateNativeQuerySnippetWithBodyWithResponse request with arbitrary body returning *CreateNativeQuerySnippetResponse
+func (c *ClientWithResponses) CreateNativeQuerySnippetWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateNativeQuerySnippetResponse, error) {
+	rsp, err := c.CreateNativeQuerySnippetWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNativeQuerySnippetResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateNativeQuerySnippetWithResponse(ctx context.Context, body CreateNativeQuerySnippetJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNativeQuerySnippetResponse, error) {
+	rsp, err := c.CreateNativeQuerySnippet(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateNativeQuerySnippetResponse(rsp)
+}
+
+// GetNativeQuerySnippetWithResponse request returning *GetNativeQuerySnippetResponse
+func (c *ClientWithResponses) GetNativeQuerySnippetWithResponse(ctx context.Context, snippetId int, reqEditors ...RequestEditorFn) (*GetNativeQuerySnippetResponse, error) {
+	rsp, err := c.GetNativeQuerySnippet(ctx, snippetId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetNativeQuerySnippetResponse(rsp)
+}
+
+// UpdateNativeQuerySnippetWithBodyWithResponse request with arbitrary body returning *UpdateNativeQuerySnippetResponse
+func (c *ClientWithResponses) UpdateNativeQuerySnippetWithBodyWithResponse(ctx context.Context, snippetId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateNativeQuerySnippetResponse, error) {
+	rsp, err := c.UpdateNativeQuerySnippetWithBody(ctx, snippetId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNativeQuerySnippetResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateNativeQuerySnippetWithResponse(ctx context.Context, snippetId int, body UpdateNativeQuerySnippetJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateNativeQuerySnippetResponse, error) {
+	rsp, err := c.UpdateNativeQuerySnippet(ctx, snippetId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateNativeQuerySnippetResponse(rsp)
 }
 
 // GetPermissionsGraphWithResponse request returning *GetPermissionsGraphResponse
@@ -6097,6 +6549,110 @@ func ParseUpdateGlossaryTermResponse(rsp *http.Response) (*UpdateGlossaryTermRes
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest GlossaryTerm
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListNativeQuerySnippetsResponse parses an HTTP response from a ListNativeQuerySnippetsWithResponse call
+func ParseListNativeQuerySnippetsResponse(rsp *http.Response) (*ListNativeQuerySnippetsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListNativeQuerySnippetsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []NativeQuerySnippet
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateNativeQuerySnippetResponse parses an HTTP response from a CreateNativeQuerySnippetWithResponse call
+func ParseCreateNativeQuerySnippetResponse(rsp *http.Response) (*CreateNativeQuerySnippetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateNativeQuerySnippetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NativeQuerySnippet
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetNativeQuerySnippetResponse parses an HTTP response from a GetNativeQuerySnippetWithResponse call
+func ParseGetNativeQuerySnippetResponse(rsp *http.Response) (*GetNativeQuerySnippetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetNativeQuerySnippetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NativeQuerySnippet
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateNativeQuerySnippetResponse parses an HTTP response from a UpdateNativeQuerySnippetWithResponse call
+func ParseUpdateNativeQuerySnippetResponse(rsp *http.Response) (*UpdateNativeQuerySnippetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateNativeQuerySnippetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NativeQuerySnippet
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

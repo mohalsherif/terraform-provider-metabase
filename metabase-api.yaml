@@ -515,6 +515,84 @@ paths:
         204:
           description: The glossary term was successfully deleted.
 
+  /native-query-snippet:
+    get:
+      operationId: listNativeQuerySnippets
+      description: Lists all the native query snippets, including archived ones.
+      responses:
+        200:
+          description: The snippets were successfully retrieved.
+          content:
+            application/json:
+              schema:
+                type: array
+                description: The list of native query snippets.
+                items:
+                  $ref: "#/components/schemas/NativeQuerySnippet"
+
+    post:
+      operationId: createNativeQuerySnippet
+      description: Creates a new native query snippet.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNativeQuerySnippetBody"
+      responses:
+        200:
+          description: The snippet was successfully created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NativeQuerySnippet"
+
+  /native-query-snippet/{snippetId}:
+    get:
+      operationId: getNativeQuerySnippet
+      description: Retrieves a single native query snippet.
+      parameters:
+        - in: path
+          name: snippetId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the snippet.
+      responses:
+        200:
+          description: The snippet was successfully retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NativeQuerySnippet"
+
+    put:
+      operationId: updateNativeQuerySnippet
+      description: >-
+        Updates a single native query snippet. The Metabase API has no delete
+        endpoint for snippets; archiving (setting `archived` to `true`) is the
+        closest equivalent.
+      parameters:
+        - in: path
+          name: snippetId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the snippet.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateNativeQuerySnippetBody"
+      responses:
+        200:
+          description: The snippet was successfully updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NativeQuerySnippet"
+
   /permissions/graph:
     get:
       operationId: getPermissionsGraph
@@ -1456,6 +1534,74 @@ components:
       required:
         - term
         - definition
+    # Native query snippet.
+    NativeQuerySnippet:
+      type: object
+      description: "A reusable SQL fragment referenced from native queries as `{{snippet: name}}`."
+      properties:
+        id:
+          type: integer
+          description: The ID of the snippet.
+        name:
+          type: string
+          description: The name of the snippet, unique across the instance.
+        content:
+          type: string
+          description: The SQL fragment.
+        description:
+          type: string
+          description: The description of the snippet.
+          nullable: true
+        collection_id:
+          type: integer
+          description: The ID of the snippet collection containing the snippet.
+          nullable: true
+        archived:
+          type: boolean
+          description: Whether the snippet is archived.
+      required:
+        - id
+        - name
+        - content
+        - archived
+    CreateNativeQuerySnippetBody:
+      type: object
+      description: The payload used to create a new native query snippet.
+      properties:
+        name:
+          type: string
+          description: The name of the snippet, unique across the instance.
+        content:
+          type: string
+          description: The SQL fragment.
+        description:
+          type: string
+          description: The description of the snippet.
+        collection_id:
+          type: integer
+          description: The ID of the snippet collection containing the snippet.
+      required:
+        - name
+        - content
+    UpdateNativeQuerySnippetBody:
+      type: object
+      description: The payload used to update an existing native query snippet. Only the provided fields are changed.
+      properties:
+        name:
+          type: string
+          description: The name of the snippet, unique across the instance.
+        content:
+          type: string
+          description: The SQL fragment.
+        description:
+          type: string
+          description: The description of the snippet.
+        collection_id:
+          type: integer
+          description: The ID of the snippet collection containing the snippet.
+        archived:
+          type: boolean
+          description: Whether the snippet is archived.
     # Permissions group.
     PermissionsGroup:
       type: object

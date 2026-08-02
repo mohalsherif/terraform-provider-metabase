@@ -3,6 +3,7 @@
 NEW FEATURES:
 
 - Add the `metabase_glossary_term` resource, managing entries in the Metabase glossary (`/api/glossary`).
+- Add the `metabase_snippet` resource, managing native query snippets (`/api/native-query-snippet`). The Metabase API cannot delete snippets, so destroying the resource archives the snippet instead.
 
 BUG FIXES:
 
