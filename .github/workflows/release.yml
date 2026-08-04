@@ -4,14 +4,24 @@ name: Release
 # this repository through a webhook and ingests every GitHub release whose tag
 # is a `v`-prefixed semver and whose assets are the signed set it expects
 # (zips + SHA256SUMS + SHA256SUMS.sig + manifest.json). This workflow produces
-# exactly that set, so pushing the tag is the only manual step.
+# exactly that set.
+#
+# EVERY push to main releases: the branch-triggered run auto-tags HEAD with the
+# next patch version and releases it in the same job. The tag trigger is kept
+# for deliberate manual versions (e.g. a minor/major bump): pushing a tag by
+# hand releases exactly that tag. The auto-tag is pushed with GITHUB_TOKEN,
+# which deliberately does NOT fire a second workflow run — the release happens
+# right here in this job, so there is no recursion and no PAT is needed.
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
 
 # Releases need permissions to read and write the repository contents.
-# GitHub considers creating releases and uploading assets as writing contents.
+# GitHub considers creating releases, uploading assets and pushing the
+# auto-tag as writing contents.
 permissions:
   contents: write
 
@@ -40,6 +50,27 @@ jobs:
           # Allow goreleaser to access older tag information.
           fetch-depth: 0
 
+      # Branch builds: tag HEAD with the next patch version so goreleaser has a
+      # tag to release. Tag builds skip this (the pushed tag IS the version).
+      # If HEAD is already tagged (e.g. a manual tag push raced this run, or a
+      # re-run), release that existing tag instead of minting a duplicate.
+      - name: Auto-tag HEAD (branch builds)
+        if: startsWith(github.ref, 'refs/heads/')
+        run: |
+          set -euo pipefail
+          git fetch --tags --quiet
+          if existing=$(git describe --exact-match --tags HEAD 2>/dev/null); then
+            echo "HEAD already tagged as $existing — releasing that tag."
+            exit 0
+          fi
+          latest=$(git tag --list 'v*' --sort=-v:refname | head -1)
+          [ -n "$latest" ] || latest="v0.0.0"
+          IFS=. read -r major minor patch <<< "${latest#v}"
+          tag="v$major.$minor.$((patch + 1))"
+          echo "Tagging HEAD as $tag (previous: $latest)"
+          git tag "$tag"
+          git push origin "$tag"
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -63,11 +94,12 @@ jobs:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
 
       - name: Verify Terraform Registry assets
-        env:
-          TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          version="${TAG#v}"
+          # github.ref_name is "main" on branch builds — the released version is
+          # whatever tag HEAD carries (pushed manually or by the auto-tag step).
+          tag="$(git describe --exact-match --tags HEAD)"
+          version="${tag#v}"
           cd dist
           for f in \
             "terraform-provider-metabase_${version}_SHA256SUMS" \
