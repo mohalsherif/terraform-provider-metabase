@@ -93,22 +93,29 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
 
+      # Check the PUBLISHED release, not dist/: the registry ingests the GitHub
+      # release's assets, and goreleaser's extra_files (the manifest) are
+      # uploaded under their templated name without ever existing in dist/
+      # under that name — checking dist/ falsely failed the v0.14.4 run after
+      # a perfectly good release.
       - name: Verify Terraform Registry assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           # github.ref_name is "main" on branch builds — the released version is
           # whatever tag HEAD carries (pushed manually or by the auto-tag step).
           tag="$(git describe --exact-match --tags HEAD)"
           version="${tag#v}"
-          cd dist
+          assets="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
           for f in \
             "terraform-provider-metabase_${version}_SHA256SUMS" \
             "terraform-provider-metabase_${version}_SHA256SUMS.sig" \
             "terraform-provider-metabase_${version}_manifest.json" \
             "terraform-provider-metabase_${version}_linux_amd64.zip" \
             "terraform-provider-metabase_${version}_darwin_arm64.zip"; do
-            if [ ! -f "$f" ]; then
-              echo "::error::Missing release asset $f — the Terraform Registry would reject this version."
+            if ! grep -qxF "$f" <<< "$assets"; then
+              echo "::error::Release $tag is missing asset $f — the Terraform Registry would reject this version."
               exit 1
             fi
             echo "ok: $f"
