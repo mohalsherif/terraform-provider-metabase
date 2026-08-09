@@ -7,6 +7,7 @@ description: |-
   Metabase exposes a single resource to define all permissions related to databases. This means a single permissions graph resource should be defined in the entire Terraform configuration. However this is not the same as the collection graph, and the two can be combined to grant permissions.
   The permissions graph cannot be created or deleted. Trying to create it will result in an error. It should be imported instead. Trying to delete the resource will succeed with no impact on Metabase (it is a no-op).
   Permissions for the Administrators group cannot be changed. To avoid issues during the update, all permissions for the Administrators group are ignored by default. This behavior can be changed using the ignored groups attribute.
+  The import ID is the revision of the graph (by convention — any integer works, as the revision is read during the import anyway), optionally followed by the list of ignored group IDs, e.g. 0:2,8,9. When the configuration sets the ignored groups attribute, list the same IDs in the import ID so they already apply to the import itself: otherwise the ignored groups' permissions are read into the state, and the first plan after the import will try to revoke them. The import seeds advanced permissions to false (it is a configuration flag with no Metabase-side value to read); a configuration setting it to true will show a one-time update right after the import.
 ---
 
 # metabase_permissions_graph (Resource)
@@ -18,6 +19,8 @@ Metabase exposes a single resource to define all permissions related to database
 The permissions graph cannot be created or deleted. Trying to create it will result in an error. It should be imported instead. Trying to delete the resource will succeed with no impact on Metabase (it is a no-op).
 
 Permissions for the Administrators group cannot be changed. To avoid issues during the update, all permissions for the Administrators group are ignored by default. This behavior can be changed using the ignored groups attribute.
+
+The import ID is the revision of the graph (by convention — any integer works, as the revision is read during the import anyway), optionally followed by the list of ignored group IDs, e.g. `0:2,8,9`. When the configuration sets the ignored groups attribute, list the same IDs in the import ID so they already apply to the import itself: otherwise the ignored groups' permissions are read into the state, and the first plan after the import will try to revoke them. The import seeds advanced permissions to false (it is a configuration flag with no Metabase-side value to read); a configuration setting it to true will show a one-time update right after the import.
 
 ## Example Usage
 
@@ -132,4 +135,9 @@ The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/c
 # By convention, the revision number of the permissions graph should be used, although it does not really matter as it
 # will be read during the import anyway.
 terraform import metabase_permissions_graph.graph 1
+
+# When the configuration sets `ignored_groups`, list the same group IDs after the revision so they already apply
+# during the import itself. Otherwise the ignored groups' permissions are read into the state, and the first plan
+# after the import will try to revoke them.
+terraform import metabase_permissions_graph.graph "1:2,8,9"
 ```

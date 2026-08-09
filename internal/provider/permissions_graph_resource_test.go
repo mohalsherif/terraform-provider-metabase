@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
@@ -141,4 +142,45 @@ func TestAccPermissionsGraphResource(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestParsePermissionsGraphImportId(t *testing.T) {
+	testCases := []struct {
+		id               string
+		expectedRevision int
+		expectedIgnored  []int64
+		expectError      bool
+	}{
+		// Revision only: the ignored groups are nil, so the provider applies its default.
+		{id: "1", expectedRevision: 1, expectedIgnored: nil},
+		{id: "0:2,8,9", expectedRevision: 0, expectedIgnored: []int64{2, 8, 9}},
+		{id: "10:2", expectedRevision: 10, expectedIgnored: []int64{2}},
+		{id: "4:2, 8", expectedRevision: 4, expectedIgnored: []int64{2, 8}},
+		// Explicitly empty list: no group is ignored, not even Administrators.
+		{id: "3:", expectedRevision: 3, expectedIgnored: []int64{}},
+		{id: "", expectError: true},
+		{id: "abc", expectError: true},
+		{id: "1:2,x", expectError: true},
+		{id: "1:2:3", expectError: true},
+	}
+
+	for _, tc := range testCases {
+		revision, ignored, err := parsePermissionsGraphImportId(tc.id)
+		if tc.expectError {
+			if err == nil {
+				t.Errorf("%q: expected an error, got none", tc.id)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("%q: unexpected error: %v", tc.id, err)
+			continue
+		}
+		if revision != tc.expectedRevision {
+			t.Errorf("%q: expected revision %d, got %d", tc.id, tc.expectedRevision, revision)
+		}
+		if !reflect.DeepEqual(ignored, tc.expectedIgnored) {
+			t.Errorf("%q: expected ignored groups %v, got %v", tc.id, tc.expectedIgnored, ignored)
+		}
+	}
 }
