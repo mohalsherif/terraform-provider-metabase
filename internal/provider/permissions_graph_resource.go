@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -92,7 +93,9 @@ Metabase exposes a single resource to define all permissions related to database
 
 The permissions graph cannot be created or deleted. Trying to create it will result in an error. It should be imported instead. Trying to delete the resource will succeed with no impact on Metabase (it is a no-op).
 
-Permissions for the Administrators group cannot be changed. To avoid issues during the update, all permissions for the Administrators group are ignored by default. This behavior can be changed using the ignored groups attribute.`,
+Permissions for the Administrators group cannot be changed. To avoid issues during the update, all permissions for the Administrators group are ignored by default. This behavior can be changed using the ignored groups attribute.
+
+The import ID is the revision of the graph (by convention — any integer works, as the revision is read during the import anyway), optionally followed by the list of ignored group IDs, e.g. ` + "`0:2,8,9`" + `. When the configuration sets the ignored groups attribute, list the same IDs in the import ID so they already apply to the import itself: otherwise the ignored groups' permissions are read into the state, and the first plan after the import will try to revoke them. The import seeds advanced permissions to false (it is a configuration flag with no Metabase-side value to read); a configuration setting it to true will show a one-time update right after the import.`,
 
 		Attributes: map[string]schema.Attribute{
 			"revision": schema.Int64Attribute{
@@ -663,12 +666,58 @@ func (r *PermissionsGraphResource) Delete(ctx context.Context, req resource.Dele
 	resp.Diagnostics.AddWarning("Delete operation is not supported for the Metabase permissions graph.", "")
 }
 
-func (r *PermissionsGraphResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	revision, err := strconv.Atoi(req.ID)
+// Parses the import ID for the permissions graph.
+// The ID is the graph revision, optionally followed by the list of ignored groups: `<revision>` or
+// `<revision>:<groupId>,<groupId>,...`.
+// The returned ignored groups are nil when the ID does not specify them (the provider then applies its default), and
+// an empty slice for an explicitly empty list (`<revision>:`), which makes the import read every group, including
+// Administrators.
+func parsePermissionsGraphImportId(id string) (int, []int64, error) {
+	revisionPart, ignoredPart, hasIgnoredGroups := strings.Cut(id, ":")
+
+	revision, err := strconv.Atoi(revisionPart)
 	if err != nil {
-		resp.Diagnostics.AddError("Unable to convert revision to an integer.", req.ID)
+		return 0, nil, fmt.Errorf("expected the revision to be an integer, got %q", revisionPart)
+	}
+
+	if !hasIgnoredGroups {
+		return revision, nil, nil
+	}
+
+	groupIds := []int64{}
+	if ignoredPart != "" {
+		for _, part := range strings.Split(ignoredPart, ",") {
+			groupId, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64)
+			if err != nil {
+				return 0, nil, fmt.Errorf("expected ignored group IDs to be integers, got %q", part)
+			}
+
+			groupIds = append(groupIds, groupId)
+		}
+	}
+
+	return revision, groupIds, nil
+}
+
+func (r *PermissionsGraphResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	revision, ignoredGroups, err := parsePermissionsGraphImportId(req.ID)
+	if err != nil {
+		resp.Diagnostics.AddError("Unexpected import ID for the permissions graph.", err.Error())
 		return
 	}
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("revision"), revision)...)
+
+	// `advanced_permissions` is a configuration flag rather than a Metabase-side value, so the import cannot read it.
+	// It is seeded to `false` so that importing with a matching configuration produces a clean plan (rather than a
+	// value-identical update of the whole graph); a configuration setting it to `true` will show a one-time update
+	// right after the import.
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("advanced_permissions"), false)...)
+
+	// Setting the ignored groups as part of the import means they already apply to the read that follows it. Without
+	// this, the import reads the graph with the default ignored groups, so the permissions of any additionally
+	// ignored group enter the state and the first plan tries to revoke them.
+	if ignoredGroups != nil {
+		resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("ignored_groups"), ignoredGroups)...)
+	}
 }
