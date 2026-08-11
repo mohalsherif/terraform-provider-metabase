@@ -343,6 +343,71 @@ func normalizeCardLibMetadata(card map[string]any, existingCard map[string]any) 
 	normalizeLibMetadataValue(card["dataset_query"], existingCard["dataset_query"])
 }
 
+// Recursively aligns JSON-null-versus-absent differences between the value returned by the Metabase API and the
+// existing value, coming from the Terraform plan or state. Metabase treats a null attribute and an absent attribute as
+// the same thing, and moves between the two representations when it persists a card: it drops some null attributes on
+// save (e.g. a parameter's `values_source_config.card_id`) and serializes some unset attributes as explicit nulls. Both
+// spellings mean "not set", so the API value adopts the existing spelling: a null the existing value does not define is
+// dropped, and a null the existing value defines but the API omitted is restored. An attribute that is null on one side
+// and carries a real value on the other is left untouched, and remains a genuine difference.
+func normalizeNullAbsenceValue(value any, existingValue any) any {
+	switch v := value.(type) {
+	case map[string]any:
+		existingMap, ok := existingValue.(map[string]any)
+		if !ok {
+			return v
+		}
+
+		for key, child := range v {
+			existingChild, inExisting := existingMap[key]
+			if child == nil && !inExisting {
+				delete(v, key)
+				continue
+			}
+
+			v[key] = normalizeNullAbsenceValue(child, existingChild)
+		}
+
+		for key, existingChild := range existingMap {
+			if existingChild == nil {
+				if _, inValue := v[key]; !inValue {
+					v[key] = nil
+				}
+			}
+		}
+
+		return v
+	case []any:
+		existingList, ok := existingValue.([]any)
+		if !ok {
+			return v
+		}
+
+		for i, child := range v {
+			var existingChild any
+			if i < len(existingList) {
+				existingChild = existingList[i]
+			}
+
+			v[i] = normalizeNullAbsenceValue(child, existingChild)
+		}
+
+		return v
+	default:
+		return value
+	}
+}
+
+// Aligns null-versus-absent attribute spellings in the card returned by the Metabase API with those in the existing
+// card definition, so that Metabase dropping or adding a null does not show up as a permanent diff.
+func normalizeCardNullAbsence(card map[string]any, existingCard map[string]any) {
+	if existingCard == nil {
+		return
+	}
+
+	normalizeNullAbsenceValue(card, existingCard)
+}
+
 // Updates the given `CardResourceModel` from the `Card` returned by the Metabase API.
 func updateModelFromCardBytes(cardBytes []byte, data *CardResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
@@ -383,6 +448,7 @@ func updateModelFromCardBytes(cardBytes []byte, data *CardResourceModel) diag.Di
 	cleanCardQuery(card, existingCard)
 	normalizeCardTemplateTags(card, existingCard)
 	normalizeCardLibMetadata(card, existingCard)
+	normalizeCardNullAbsence(card, existingCard)
 
 	// If the existing card is different from the response from the API, updates the JSON string by remarshalling the
 	// "cleaned" response to a string. This should only happen:

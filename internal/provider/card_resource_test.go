@@ -378,6 +378,91 @@ func TestUpdateModelFromCardBytesUpdatesRealChangeAlongsideLibMetadata(t *testin
 	checkCardJson(t, data, expectedJson)
 }
 
+// Returns the JSON definition of a card with a single filter parameter whose `values_source_config` carries the given
+// attributes. The config is one of the places where Metabase rewrites null attributes when persisting a card.
+func makeValuesSourceCardJson(valuesSourceConfigAttributes string) string {
+	return fmt.Sprintf(`{
+  "name": "Card with a card-sourced filter",
+  "query_type": "native",
+  "dataset_query": {
+    "type": "native",
+    "database": 1,
+    "native": {"query": "SELECT 1"}
+  },
+  "parameters": [
+    {
+      "id": "abc",
+      "name": "Channel",
+      "slug": "channel",
+      "type": "string/=",
+      "values_query_type": "list",
+      "values_source_type": "card",
+      "values_source_config": {%s"value_field": ["field", "channel_type", {"base-type": "type/Text"}]}
+    }
+  ],
+  "display": "table"
+}`, valuesSourceConfigAttributes)
+}
+
+// Metabase drops null attributes from some structures when it persists a card — a parameter's
+// `values_source_config.card_id` is one — so a definition spelling the null out would otherwise re-plan the same
+// update forever.
+func TestUpdateModelFromCardBytesKeepsNullDroppedByMetabase(t *testing.T) {
+	existingJson := makeValuesSourceCardJson(`"card_id": null, `)
+	responseJson := makeValuesSourceCardJson("")
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, existingJson)
+}
+
+// The API also serializes some attributes the definition omitted as explicit nulls; both spellings mean "not set".
+func TestUpdateModelFromCardBytesDropsNullAddedByMetabase(t *testing.T) {
+	existingJson := makeValuesSourceCardJson("")
+	responseJson := makeValuesSourceCardJson(`"card_id": null, `)
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, existingJson)
+}
+
+// A null on one side against a real value on the other is a genuine difference and must still reach the state.
+func TestUpdateModelFromCardBytesUpdatesNullVersusRealValue(t *testing.T) {
+	existingJson := makeValuesSourceCardJson(`"card_id": null, `)
+	responseJson := makeValuesSourceCardJson(`"card_id": 420, `)
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, responseJson)
+}
+
+// A value the definition sets but the API dropped entirely is a genuine difference too — only the null spelling of
+// "not set" is aligned.
+func TestUpdateModelFromCardBytesUpdatesDroppedRealValue(t *testing.T) {
+	existingJson := makeValuesSourceCardJson(`"card_id": 420, `)
+	responseJson := makeValuesSourceCardJson("")
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, responseJson)
+}
+
 func TestAccCardResource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
