@@ -80,6 +80,42 @@ resource "metabase_card" "%s" {
 	)
 }
 
+// The same native query card as testAccNativeQueryCardResource, but spelling out the empty map of template tags.
+// Metabase drops the empty map when echoing the card back, so this only applies cleanly if the provider treats the two
+// spellings of "no tags" as equivalent.
+func testAccNativeQueryCardResourceEmptyTemplateTags(name string, displayName string) string {
+	return fmt.Sprintf(`
+resource "metabase_card" "%s" {
+  json = jsonencode({
+    name                = "%s"
+    description         = "Native query card"
+    collection_id       = null
+    collection_position = null
+    cache_ttl           = null
+    query_type          = "native"
+    dataset_query = {
+      "lib/type" = "mbql/query"
+      database   = 1
+      stages = [
+        {
+          "lib/type"      = "mbql.stage/native"
+          native          = "SELECT 1"
+          "template-tags" = {}
+        }
+      ]
+    }
+    parameter_mappings     = []
+    display                = "table"
+    visualization_settings = {}
+    parameters             = []
+  })
+}
+`,
+		name,
+		displayName,
+	)
+}
+
 func testAccCheckCardExists(resourceName string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[resourceName]
@@ -257,6 +293,84 @@ func TestUpdateModelFromCardBytesKeepsTemplateTagsWithoutExistingCard(t *testing
 	responseJson := makeNativeCardJson(`[{"id": "abc", "name": "id", "type": "number"}]`)
 
 	data := &CardResourceModel{Json: types.StringNull()}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, responseJson)
+}
+
+// Returns the JSON definition of a card with a native query that uses no template tags, in the pMBQL format. The given
+// attributes are inserted in the native stage, which is where a definition may spell out an empty `template-tags`.
+func makeTaglessNativeCardJson(stageAttributes string) string {
+	return fmt.Sprintf(`{
+  "name": "Tagless native query card",
+  "query_type": "native",
+  "dataset_query": {
+    "lib/type": "mbql/query",
+    "database": 1,
+    "stages": [
+      {
+        "lib/type": "mbql.stage/native",
+        "native": "SELECT 1"%s
+      }
+    ]
+  },
+  "display": "table"
+}`, stageAttributes)
+}
+
+// Metabase drops an empty `template-tags` when it persists a native query, so a definition spelling out the empty map
+// would otherwise fail every apply with "Provider produced inconsistent result after apply".
+func TestUpdateModelFromCardBytesKeepsEmptyTemplateTagsDroppedByMetabase(t *testing.T) {
+	existingJson := makeTaglessNativeCardJson(`, "template-tags": {}`)
+	responseJson := makeTaglessNativeCardJson("")
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, existingJson)
+}
+
+// The API may also return an empty `template-tags` the definition omitted; both spellings mean "no tags".
+func TestUpdateModelFromCardBytesDropsEmptyTemplateTagsAddedByMetabase(t *testing.T) {
+	existingJson := makeTaglessNativeCardJson("")
+	responseJson := makeTaglessNativeCardJson(`, "template-tags": {}`)
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, existingJson)
+}
+
+// The empty list representation of the tags is the same "no tags" as the empty map.
+func TestUpdateModelFromCardBytesDropsEmptyTemplateTagsListAddedByMetabase(t *testing.T) {
+	existingJson := makeTaglessNativeCardJson("")
+	responseJson := makeTaglessNativeCardJson(`, "template-tags": []`)
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, existingJson)
+}
+
+// Tags the definition declares but the API dropped entirely are a genuine difference and must still reach the state —
+// only the empty spelling of "no tags" is aligned.
+func TestUpdateModelFromCardBytesUpdatesDroppedRealTemplateTags(t *testing.T) {
+	existingJson := makeTaglessNativeCardJson(`, "template-tags": {"id": {"id": "abc", "name": "id", "type": "number"}}`)
+	responseJson := makeTaglessNativeCardJson("")
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
 	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
 
 	if diags.HasError() {
@@ -510,6 +624,13 @@ func TestAccNativeQueryCardResource(t *testing.T) {
 			},
 			{
 				Config: providerConfig + testAccNativeQueryCardResource("test_native", "Updated Native Query"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("metabase_card.test_native", "id"),
+					resource.TestCheckResourceAttrSet("metabase_card.test_native", "json"),
+				),
+			},
+			{
+				Config: providerConfig + testAccNativeQueryCardResourceEmptyTemplateTags("test_native", "Tagless Native Query"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("metabase_card.test_native", "id"),
 					resource.TestCheckResourceAttrSet("metabase_card.test_native", "json"),
