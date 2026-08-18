@@ -226,14 +226,45 @@ func convertTemplateTags(tags any, existingTags any) any {
 	}
 }
 
+// Returns whether the given value holds a collection of template tags that contains none, in either the map or list
+// representation.
+func isEmptyTemplateTags(tags any) bool {
+	switch t := tags.(type) {
+	case map[string]any:
+		return len(t) == 0
+	case []any:
+		return len(t) == 0
+	default:
+		return false
+	}
+}
+
+// Makes an empty `template-tags` attribute in the given object returned by the Metabase API match the spelling used by
+// the existing object, coming from the Terraform plan or state. Metabase drops the empty collection when it persists a
+// native query, so an empty `template-tags` and an absent one both mean "no tags": an empty attribute the existing
+// object defines but the API omitted is restored, and an empty attribute the existing object does not define is
+// dropped. A non-empty collection of tags on either side is left untouched, and remains a genuine difference.
+func alignEmptyTemplateTags(value map[string]any, existingValue map[string]any) {
+	tags, inValue := value[templateTagsAttribute]
+	existingTags, inExisting := existingValue[templateTagsAttribute]
+
+	if !inValue && inExisting && isEmptyTemplateTags(existingTags) {
+		value[templateTagsAttribute] = existingTags
+	} else if inValue && !inExisting && isEmptyTemplateTags(tags) {
+		delete(value, templateTagsAttribute)
+	}
+}
+
 // Recursively rewrites the `template-tags` in the given value returned by the Metabase API, such that they use the same
 // representation as in the existing value, coming from the Terraform plan or state.
 // Metabase 0.63 changed the serialization of template tags from a map indexed by the tag name to a list of tags. Both
 // representations are accepted by the API and are semantically equivalent, as tags always define their own name.
+// The spelling of "no tags" is aligned as well: Metabase drops an empty `template-tags` when it persists a query, so an
+// empty collection and an absent attribute are equivalent, and the existing spelling wins.
 func normalizeTemplateTagsValue(value any, existingValue any) any {
 	switch v := value.(type) {
 	case map[string]any:
-		existingMap, _ := existingValue.(map[string]any)
+		existingMap, existingIsMap := existingValue.(map[string]any)
 
 		for key, child := range v {
 			existingChild := existingMap[key]
@@ -243,6 +274,10 @@ func normalizeTemplateTagsValue(value any, existingValue any) any {
 			} else {
 				v[key] = normalizeTemplateTagsValue(child, existingChild)
 			}
+		}
+
+		if existingIsMap {
+			alignEmptyTemplateTags(v, existingMap)
 		}
 
 		return v
@@ -265,7 +300,8 @@ func normalizeTemplateTagsValue(value any, existingValue any) any {
 }
 
 // Rewrites the template tags in the query of the card returned by the Metabase API, such that they use the same
-// representation (map or list) as the ones in the existing card definition.
+// representation (map or list) as the ones in the existing card definition, and the same spelling of "no tags" (an
+// empty collection or an absent attribute).
 func normalizeCardTemplateTags(card map[string]any, existingCard map[string]any) {
 	if existingCard == nil {
 		return
