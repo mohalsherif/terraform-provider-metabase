@@ -2,6 +2,7 @@
 
 NEW FEATURES:
 
+- Add the `metabase_dashboard_width` resource, managing only the `width` setting (`fixed` or `full`) of an existing dashboard through a partial update. Nothing else in the dashboard is touched — no dashcard is replaced — so it can safely target dashboards whose layout is owned by the Metabase UI (e.g. `metabase_dashboard` resources declared with `lifecycle { ignore_changes = all }`) or dashboards not managed by Terraform at all.
 - Add the `metabase_glossary_term` resource, managing entries in the Metabase glossary (`/api/glossary`).
 - Add the `metabase_snippet` resource, managing native query snippets (`/api/native-query-snippet`). The Metabase API cannot delete snippets, so destroying the resource archives the snippet instead.
 - The `metabase_permissions_graph` import ID can now carry the ignored groups along with the revision (`<revision>:<groupId>,<groupId>,...`, e.g. `0:2,8,9`), so they already apply to the read performed by the import. Previously the import always read the graph with the default ignored groups (`[2]`): when the configuration ignored additional groups — such as the magic "All tenant users" and "Data Analysts" groups recent Metabase versions add to the graph — their permissions entered the state, and the first plan after the import tried to revoke them. The import also now seeds `advanced_permissions` to `false` (it is a configuration flag with no Metabase-side value to read), so importing with a matching configuration produces a clean plan instead of a value-identical update of the whole graph.
