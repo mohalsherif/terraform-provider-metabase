@@ -716,6 +716,44 @@ paths:
               schema:
                 $ref: "#/components/schemas/Session"
 
+  /setting/{settingKey}:
+    get:
+      operationId: getSetting
+      description: Retrieves the value of a single Metabase setting.
+      parameters:
+        - in: path
+          name: settingKey
+          schema:
+            type: string
+          required: true
+          description: The key of the setting.
+      responses:
+        200:
+          description: The value of the setting, as raw JSON.
+          content:
+            application/json:
+              schema: {}
+
+    put:
+      operationId: updateSetting
+      description: Updates the value of a single Metabase setting. A null value resets the setting to its default.
+      parameters:
+        - in: path
+          name: settingKey
+          schema:
+            type: string
+          required: true
+          description: The key of the setting.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingBody"
+      responses:
+        204:
+          description: The setting was successfully updated.
+
   /table:
     get:
       operationId: listTables
@@ -1744,6 +1782,17 @@ components:
       required:
         - username
         - password
+    # Settings.
+    UpdateSettingBody:
+      type: object
+      description: The new value for a setting.
+      additionalProperties: false
+      properties:
+        value:
+          description: The value of the setting, as raw JSON. A null value resets the setting to its default.
+      required:
+        - value
+
     # Tables.
     Table:
       type: object
