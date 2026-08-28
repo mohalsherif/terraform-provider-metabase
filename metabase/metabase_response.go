@@ -264,6 +264,24 @@ func (r *DeletePermissionsGroupResponse) HasExpectedStatusWithoutExpectedBody() 
 	return false
 }
 
+func (r *GetSettingResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *GetSettingResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	// The response body is parsed from `Body` by the caller: Metabase serves string settings as `text/plain`, which
+	// the generated client does not deserialize into `JSON200`.
+	return false
+}
+
+func (r *UpdateSettingResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *UpdateSettingResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return false
+}
+
 func (r *CreateSessionResponse) BodyString() string {
 	return string(r.Body)
 }
