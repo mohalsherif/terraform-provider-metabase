@@ -131,3 +131,13 @@ func getIgnoredPermissionsGroups(ctx context.Context, list types.Set) (map[strin
 
 	return ignoredGroups, diags
 }
+
+// Converts a pointer to a bool into a Terraform bool value, substituting `def` when the API omitted the field.
+// Used for server-side defaults (e.g. a dashboard's `auto_apply_filters`, which Metabase reports as `true` unless
+// explicitly disabled) so that an absent field never shows up as a diff against the schema default.
+func boolValueOrDefault(v *bool, def bool) types.Bool {
+	if v == nil {
+		return types.BoolValue(def)
+	}
+	return types.BoolValue(*v)
+}

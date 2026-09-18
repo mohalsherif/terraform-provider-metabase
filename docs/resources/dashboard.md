@@ -124,6 +124,7 @@ resource "metabase_dashboard" "some_great_dashboard" {
 
 ### Optional
 
+- `auto_apply_filters` (Boolean) Whether dashboard filters apply automatically as they change (`true`, the Metabase default) or wait for an explicit Apply click (`false`). Turning it off means adjusting several filters runs every card once, not once per change.
 - `cache_ttl` (Number) The cache TTL.
 - `collection_id` (Number) The ID of the collection in which the dashboard is placed.
 - `collection_position` (Number) The position of the dashboard in the collection.

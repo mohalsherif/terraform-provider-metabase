@@ -1169,6 +1169,9 @@ components:
           type: integer
           description: The cache TTL.
           nullable: true
+        auto_apply_filters:
+          type: boolean
+          description: Whether dashboard filters apply automatically as they change (true, the Metabase default) or wait for an explicit Apply click (false).
         archived:
           type: boolean
           description: Whether the dashboard has been archived.
@@ -1222,6 +1225,9 @@ components:
           type: integer
           description: The cache TTL.
           nullable: true
+        auto_apply_filters:
+          type: boolean
+          description: Whether dashboard filters apply automatically as they change (true, the Metabase default) or wait for an explicit Apply click (false).
         parameters:
           type: array
           description: A list of parameters for the dashboard, that the user can tweak.
@@ -1254,6 +1260,9 @@ components:
           type: integer
           description: The cache TTL.
           nullable: true
+        auto_apply_filters:
+          type: boolean
+          description: Whether dashboard filters apply automatically as they change (true, the Metabase default) or wait for an explicit Apply click (false).
         archived:
           type: boolean
           description: Set to `true` to archive the dashboard.

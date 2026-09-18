@@ -340,6 +340,9 @@ type CreateCollectionBody struct {
 
 // CreateDashboardBody The body of the payload when creating a dashboard.
 type CreateDashboardBody struct {
+	// AutoApplyFilters Whether dashboard filters apply automatically as they change (true, the Metabase default) or wait for an explicit Apply click (false).
+	AutoApplyFilters *bool `json:"auto_apply_filters,omitempty"`
+
 	// CacheTtl The cache TTL.
 	CacheTtl *int `json:"cache_ttl,omitempty"`
 
@@ -414,6 +417,9 @@ type CreateSessionBody struct {
 type Dashboard struct {
 	// Archived Whether the dashboard has been archived.
 	Archived bool `json:"archived"`
+
+	// AutoApplyFilters Whether dashboard filters apply automatically as they change (true, the Metabase default) or wait for an explicit Apply click (false).
+	AutoApplyFilters *bool `json:"auto_apply_filters,omitempty"`
 
 	// CacheTtl The cache TTL.
 	CacheTtl *int `json:"cache_ttl"`
@@ -796,6 +802,9 @@ type UpdateCollectionBody struct {
 type UpdateDashboardBody struct {
 	// Archived Set to `true` to archive the dashboard.
 	Archived *bool `json:"archived,omitempty"`
+
+	// AutoApplyFilters Whether dashboard filters apply automatically as they change (true, the Metabase default) or wait for an explicit Apply click (false).
+	AutoApplyFilters *bool `json:"auto_apply_filters,omitempty"`
 
 	// CacheTtl The cache TTL.
 	CacheTtl *int `json:"cache_ttl,omitempty"`

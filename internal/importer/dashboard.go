@@ -17,6 +17,7 @@ const dashboardTemplate = `resource "metabase_dashboard" "{{.TerraformSlug}}" {
   name                = {{.Name}}
   description         = {{if .Description}}{{.Description}}{{else}}null{{end}}
   cache_ttl           = {{if .CacheTtl}}{{.CacheTtl}}{{else}}null{{end}}
+  auto_apply_filters  = {{.AutoApplyFilters}}
   collection_id       = {{if .CollectionRef}}metabase_collection.{{.CollectionRef}}.id{{else}}null{{end}}
   collection_position = {{if .CollectionPosition}}{{.CollectionPosition}}{{else}}null{{end}}
 
@@ -34,6 +35,7 @@ type dashboardTemplateData struct {
 	Name               string  // The name of the dashboard.
 	Description        *string // The description of the dashboard.
 	CacheTtl           *int    // The TTL for the cache.
+	AutoApplyFilters   bool    // Whether filters apply as they change (Metabase default true).
 	CollectionRef      *string // The reference to the collection where the dashboard is located.
 	CollectionPosition *int    // The position in the collection.
 	ParametersHcl      string  // The dashboard parameters, as an HCL string.
@@ -339,6 +341,7 @@ func (ic *ImportContext) makeDashboardHcl(ctx context.Context, dashboard metabas
 		Name:               string(name),
 		Description:        description,
 		CacheTtl:           dashboard.CacheTtl,
+		AutoApplyFilters:   dashboard.AutoApplyFilters == nil || *dashboard.AutoApplyFilters,
 		CollectionRef:      collectionRef,
 		CollectionPosition: dashboard.CollectionPosition,
 		ParametersHcl:      *parametersHcl,

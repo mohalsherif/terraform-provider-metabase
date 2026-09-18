@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -39,6 +40,7 @@ type DashboardResourceModel struct {
 	Id                 types.Int64  `tfsdk:"id"`                  // The ID of the dashboard.
 	Name               types.String `tfsdk:"name"`                // The name of the dashboard.
 	CacheTtl           types.Int64  `tfsdk:"cache_ttl"`           // The cache TTL.
+	AutoApplyFilters   types.Bool   `tfsdk:"auto_apply_filters"`  // Whether filters apply as they change or wait for an Apply click.
 	CollectionId       types.Int64  `tfsdk:"collection_id"`       // The ID of the collection in which the dashboard is placed.
 	CollectionPosition types.Int64  `tfsdk:"collection_position"` // The position of the dashboard in the collection.
 	Description        types.String `tfsdk:"description"`         // A description for the dashboard.
@@ -124,6 +126,12 @@ Although a dashboard object is even more complex than a card (question), basic p
 				MarkdownDescription: "The cache TTL.",
 				Optional:            true,
 			},
+			"auto_apply_filters": schema.BoolAttribute{
+				MarkdownDescription: "Whether dashboard filters apply automatically as they change (`true`, the Metabase default) or wait for an explicit Apply click (`false`). Turning it off means adjusting several filters runs every card once, not once per change.",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(true),
+			},
 			"collection_id": schema.Int64Attribute{
 				MarkdownDescription: "The ID of the collection in which the dashboard is placed.",
 				Optional:            true,
@@ -200,6 +208,7 @@ func updateModelFromDashboardAndRawBody(d metabase.Dashboard, body []byte, data 
 	data.Id = types.Int64Value(int64(d.Id))
 	data.Name = types.StringValue(d.Name)
 	data.CacheTtl = int64ValueOrNull(d.CacheTtl)
+	data.AutoApplyFilters = boolValueOrDefault(d.AutoApplyFilters, true)
 	data.CollectionId = int64ValueOrNull(d.CollectionId)
 	data.CollectionPosition = int64ValueOrNull(d.CollectionPosition)
 	data.Description = stringValueOrNull(d.Description)
@@ -513,6 +522,7 @@ func (r *DashboardResource) Create(ctx context.Context, req resource.CreateReque
 		Name:               data.Name.ValueString(),
 		Description:        valueStringOrNull(data.Description),
 		CacheTtl:           valueInt64OrNull(data.CacheTtl),
+		AutoApplyFilters:   data.AutoApplyFilters.ValueBoolPointer(),
 		CollectionId:       valueInt64OrNull(data.CollectionId),
 		CollectionPosition: valueInt64OrNull(data.CollectionPosition),
 		Parameters:         parameters,
@@ -566,6 +576,7 @@ func makeUpdateFromModel(ctx context.Context, client metabase.ClientWithResponse
 		"name":                valueStringOrNull(data.Name),
 		"description":         valueStringOrNull(data.Description),
 		"cache_ttl":           valueInt64OrNull(data.CacheTtl),
+		"auto_apply_filters":  data.AutoApplyFilters.ValueBool(),
 		"collection_id":       valueInt64OrNull(data.CollectionId),
 		"collection_position": valueInt64OrNull(data.CollectionPosition),
 		"parameters":          parameters,
