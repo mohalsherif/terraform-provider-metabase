@@ -2,6 +2,8 @@
 
 NEW FEATURES:
 
+- Add the `auto_apply_filters` attribute to `metabase_dashboard` (default `true`, the Metabase default). Set it to `false` to give the dashboard an explicit **Apply** button so that adjusting several filters runs every card once instead of once per change — on a wide dashboard each auto-applied change re-executes every card. The importer (`mbtf`) emits the attribute.
+
 - Add the `metabase_setting` resource, managing a single Metabase instance-wide setting through `/api/setting/:key` (e.g. `custom-homepage` and `custom-homepage-dashboard`, which make a dashboard the instance homepage). The value is the raw JSON encoding of the setting (`jsonencode(...)`), so any setting type can be expressed. Deleting the resource resets the setting to its Metabase default.
 - Add the `metabase_dashboard_width` resource, managing only the `width` setting (`fixed` or `full`) of an existing dashboard through a partial update. Nothing else in the dashboard is touched — no dashcard is replaced — so it can safely target dashboards whose layout is owned by the Metabase UI (e.g. `metabase_dashboard` resources declared with `lifecycle { ignore_changes = all }`) or dashboards not managed by Terraform at all.
 - Add the `metabase_glossary_term` resource, managing entries in the Metabase glossary (`/api/glossary`).
