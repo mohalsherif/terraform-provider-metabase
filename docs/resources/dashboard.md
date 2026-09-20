@@ -6,6 +6,7 @@ description: |-
   A Metabase dashboard.
   Although a dashboard object is even more complex than a card (question), basic properties are exposed as Terraform attributes. The more complex ones, parameters and cards, are exposed a raw JSON strings. Similarly to cards, templatefile and jsonencode can be used to make the definition more readable.
   An update that leaves `parameters_json`, `cards_json` and `tabs_json` unchanged sends only the dashboard's own properties (name, description, collection, ...): the existing dashcards and tabs keep their IDs, so links into the dashboard keep working. This is also how a dashboard whose layout is owned by the Metabase UI can have just its name managed — declare those three attributes under `lifecycle { ignore_changes = [...] }`. Whenever any of them changes, the whole content is replaced, as before.
+  A link card's `visualization_settings.link.entity` is compared on its `id` and `model` only: Metabase hydrates the other attributes (`name`, `description`, `display`, `db_id`, `collection_id`, ...) from the linked entity on every read, so they change whenever that entity does — renaming a dashboard that a link card points to does not make the card differ from its definition.
 ---
 
 # metabase_dashboard (Resource)
@@ -15,6 +16,8 @@ A Metabase dashboard.
 Although a dashboard object is even more complex than a card (question), basic properties are exposed as Terraform attributes. The more complex ones, parameters and cards, are exposed a raw JSON strings. Similarly to cards, templatefile and jsonencode can be used to make the definition more readable.
 
 An update that leaves `parameters_json`, `cards_json` and `tabs_json` unchanged sends only the dashboard's own properties (name, description, collection, ...): the existing dashcards and tabs keep their IDs, so links into the dashboard keep working. This is also how a dashboard whose layout is owned by the Metabase UI can have just its name managed — declare those three attributes under `lifecycle { ignore_changes = [...] }`. Whenever any of them changes, the whole content is replaced, as before.
+
+A link card's `visualization_settings.link.entity` is compared on its `id` and `model` only: Metabase hydrates the other attributes (`name`, `description`, `display`, `db_id`, `collection_id`, ...) from the linked entity on every read, so they change whenever that entity does — renaming a dashboard that a link card points to does not make the card differ from its definition.
 
 ## Example Usage
 
