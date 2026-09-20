@@ -112,7 +112,9 @@ func (r *DashboardResource) Schema(ctx context.Context, req resource.SchemaReque
 
 Although a dashboard object is even more complex than a card (question), basic properties are exposed as Terraform attributes. The more complex ones, parameters and cards, are exposed a raw JSON strings. Similarly to cards, templatefile and jsonencode can be used to make the definition more readable.
 
-An update that leaves ` + "`parameters_json`, `cards_json` and `tabs_json`" + ` unchanged sends only the dashboard's own properties (name, description, collection, ...): the existing dashcards and tabs keep their IDs, so links into the dashboard keep working. This is also how a dashboard whose layout is owned by the Metabase UI can have just its name managed — declare those three attributes under ` + "`lifecycle { ignore_changes = [...] }`" + `. Whenever any of them changes, the whole content is replaced, as before.`,
+An update that leaves ` + "`parameters_json`, `cards_json` and `tabs_json`" + ` unchanged sends only the dashboard's own properties (name, description, collection, ...): the existing dashcards and tabs keep their IDs, so links into the dashboard keep working. This is also how a dashboard whose layout is owned by the Metabase UI can have just its name managed — declare those three attributes under ` + "`lifecycle { ignore_changes = [...] }`" + `. Whenever any of them changes, the whole content is replaced, as before.
+
+A link card's ` + "`visualization_settings.link.entity`" + ` is compared on its ` + "`id`" + ` and ` + "`model`" + ` only: Metabase hydrates the other attributes (` + "`name`, `description`, `display`, `db_id`, `collection_id`" + `, ...) from the linked entity on every read, so they change whenever that entity does — renaming a dashboard that a link card points to does not make the card differ from its definition.`,
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.Int64Attribute{
@@ -252,6 +254,78 @@ func updateModelFromDashboardAndRawBody(d metabase.Dashboard, body []byte, data 
 	return diags
 }
 
+// linkEntityIdentityAttributes are the attributes of a link card's `visualization_settings.link.entity` that carry
+// the user's intent: which entity the card links to. Every other attribute of the entity (`name`, `description`,
+// `display`, `db_id`, `collection_id`, ...) is hydrated by Metabase from the linked entity on every read, so it
+// changes whenever the linked entity does — renaming a dashboard that a link card points to changes what the API
+// returns for the card without anything about the card having changed.
+var linkEntityIdentityAttributes = map[string]bool{
+	"id":    true,
+	"model": true,
+}
+
+// withoutLinkEntityHydration returns a deep copy of the dashcards in which every link card's entity is reduced to
+// the attributes that identify it, so that two dashcard lists can be compared without the values Metabase hydrates
+// onto link cards. The input is not modified: the state keeps whatever the user (or the API) spelled out.
+func withoutLinkEntityHydration(dashcards []any) []any {
+	result := make([]any, 0, len(dashcards))
+
+	for _, c := range dashcards {
+		card, ok := c.(map[string]any)
+		if !ok {
+			result = append(result, c)
+			continue
+		}
+
+		settings, ok := card["visualization_settings"].(map[string]any)
+		if !ok {
+			result = append(result, card)
+			continue
+		}
+
+		link, ok := settings["link"].(map[string]any)
+		if !ok {
+			result = append(result, card)
+			continue
+		}
+
+		entity, ok := link["entity"].(map[string]any)
+		if !ok {
+			result = append(result, card)
+			continue
+		}
+
+		identity := make(map[string]any, len(linkEntityIdentityAttributes))
+		for key, value := range entity {
+			if linkEntityIdentityAttributes[key] {
+				identity[key] = value
+			}
+		}
+
+		newLink := make(map[string]any, len(link))
+		for key, value := range link {
+			newLink[key] = value
+		}
+		newLink["entity"] = identity
+
+		newSettings := make(map[string]any, len(settings))
+		for key, value := range settings {
+			newSettings[key] = value
+		}
+		newSettings["link"] = newLink
+
+		newCard := make(map[string]any, len(card))
+		for key, value := range card {
+			newCard[key] = value
+		}
+		newCard["visualization_settings"] = newSettings
+
+		result = append(result, newCard)
+	}
+
+	return result
+}
+
 // Updates the `cards_json` attribute in the `DashboardResourceModel` using the raw response from the Metabase API.
 // tabIdMapping maps Metabase tab IDs to user-provided tab IDs.
 func updateCardsFromRawBody(bytes []byte, data *DashboardResourceModel, tabIdMapping map[int]int) diag.Diagnostics {
@@ -320,10 +394,10 @@ func updateCardsFromRawBody(bytes []byte, data *DashboardResourceModel, tabIdMap
 	sortDashcards(dashcards)
 	sortDashcards(existingCards)
 
-	// Only update state if there's an actual difference (order-independent).
-	// This preserves the user's original card ordering in state, preventing the "Provider produced inconsistent result
-	// after apply" error when the only difference is card order.
-	if !reflect.DeepEqual(dashcards, existingCards) {
+	// Only update state if there's an actual difference (order-independent, and ignoring what Metabase hydrates onto
+	// link cards). This preserves the user's original card ordering in state, preventing the "Provider produced
+	// inconsistent result after apply" error when the only difference is card order or link-card hydration.
+	if !reflect.DeepEqual(withoutLinkEntityHydration(dashcards), withoutLinkEntityHydration(existingCards)) {
 		cardsJson, err := json.Marshal(dashcards)
 		if err != nil {
 			diags.AddError("Error serializing new JSON value.", err.Error())
