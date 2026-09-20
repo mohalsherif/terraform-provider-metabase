@@ -110,7 +110,9 @@ func (r *DashboardResource) Schema(ctx context.Context, req resource.SchemaReque
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A Metabase dashboard.
 
-Although a dashboard object is even more complex than a card (question), basic properties are exposed as Terraform attributes. The more complex ones, parameters and cards, are exposed a raw JSON strings. Similarly to cards, templatefile and jsonencode can be used to make the definition more readable.`,
+Although a dashboard object is even more complex than a card (question), basic properties are exposed as Terraform attributes. The more complex ones, parameters and cards, are exposed a raw JSON strings. Similarly to cards, templatefile and jsonencode can be used to make the definition more readable.
+
+An update that leaves ` + "`parameters_json`, `cards_json` and `tabs_json`" + ` unchanged sends only the dashboard's own properties (name, description, collection, ...): the existing dashcards and tabs keep their IDs, so links into the dashboard keep working. This is also how a dashboard whose layout is owned by the Metabase UI can have just its name managed — declare those three attributes under ` + "`lifecycle { ignore_changes = [...] }`" + `. Whenever any of them changes, the whole content is replaced, as before.`,
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.Int64Attribute{
@@ -534,7 +536,7 @@ func (r *DashboardResource) Create(ctx context.Context, req resource.CreateReque
 
 	// The create dashboard endpoint does not support setting the dashcards. Those must be set by updating the dashboard
 	// afterwards.
-	updateResp, updateDiags := makeUpdateFromModel(ctx, r.client, createResp.JSON200.Id, *data, "update dashboard during creation")
+	updateResp, updateDiags := makeUpdateFromModel(ctx, r.client, createResp.JSON200.Id, *data, nil, "update dashboard during creation")
 	resp.Diagnostics.Append(updateDiags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -551,8 +553,44 @@ func (r *DashboardResource) Create(ctx context.Context, req resource.CreateReque
 
 // Calls the Metabase API to update a dashboard from a Terraform model.
 // This constructs a "raw" payload to handle the serialization of dashcards with a unique ID.
-func makeUpdateFromModel(ctx context.Context, client metabase.ClientWithResponsesInterface, dashboardId int, data DashboardResourceModel, operation string) (*metabase.UpdateDashboardResponse, diag.Diagnostics) {
+// dashboardContentUnchanged reports whether the planned dashboard carries the same parameters, dashcards and tabs as
+// the prior state. The comparison is on the raw JSON strings on purpose: when an attribute is unchanged (or covered by
+// `ignore_changes`) Terraform hands the prior state's own string back as the planned value, so byte-equal strings are
+// exactly the case where the dashboard's content is not meant to change. A string that differs only in formatting is
+// treated as changed, which falls back to the full update.
+func dashboardContentUnchanged(prior *DashboardResourceModel, planned DashboardResourceModel) bool {
+	if prior == nil {
+		return false
+	}
+
+	return prior.ParametersJson.Equal(planned.ParametersJson) &&
+		prior.CardsJson.Equal(planned.CardsJson) &&
+		prior.TabsJson.Equal(planned.TabsJson)
+}
+
+// makeUpdatePayload builds the body of the dashboard update request from a Terraform model.
+//
+// `prior` is the resource's prior state, or nil when the dashboard is being created. The dashboard's own properties
+// (name, description, collection, ...) are always sent. Its content — parameters, dashcards and tabs — is only sent
+// when it differs from the prior state: the Metabase API replaces every dashcard and tab it receives (the provider
+// sends them with fresh negative IDs), so resending unchanged content on a rename or a description edit would give
+// every dashcard and tab a new ID and break links into the dashboard (`?tab=<id>`). Omitting them from the request
+// leaves them untouched, which is what a metadata-only update means.
+func makeUpdatePayload(data DashboardResourceModel, prior *DashboardResourceModel) (map[string]any, diag.Diagnostics) {
 	var diags diag.Diagnostics
+
+	updatePayload := map[string]any{
+		"name":                valueStringOrNull(data.Name),
+		"description":         valueStringOrNull(data.Description),
+		"cache_ttl":           valueInt64OrNull(data.CacheTtl),
+		"auto_apply_filters":  data.AutoApplyFilters.ValueBool(),
+		"collection_id":       valueInt64OrNull(data.CollectionId),
+		"collection_position": valueInt64OrNull(data.CollectionPosition),
+	}
+
+	if dashboardContentUnchanged(prior, data) {
+		return updatePayload, diags
+	}
 
 	parameters, parametersDiags := makeParametersFromModel(context.Background(), data.ParametersJson)
 	diags.Append(parametersDiags...)
@@ -572,19 +610,23 @@ func makeUpdateFromModel(ctx context.Context, client metabase.ClientWithResponse
 		return nil, diags
 	}
 
-	updatePayload := map[string]any{
-		"name":                valueStringOrNull(data.Name),
-		"description":         valueStringOrNull(data.Description),
-		"cache_ttl":           valueInt64OrNull(data.CacheTtl),
-		"auto_apply_filters":  data.AutoApplyFilters.ValueBool(),
-		"collection_id":       valueInt64OrNull(data.CollectionId),
-		"collection_position": valueInt64OrNull(data.CollectionPosition),
-		"parameters":          parameters,
-		"dashcards":           dashcards,
-	}
+	updatePayload["parameters"] = parameters
+	updatePayload["dashcards"] = dashcards
 	if tabs != nil {
 		updatePayload["tabs"] = tabs
 	}
+
+	return updatePayload, diags
+}
+
+// makeUpdateFromModel updates the dashboard from a Terraform model. See makeUpdatePayload for what the request carries
+// depending on `prior`.
+func makeUpdateFromModel(ctx context.Context, client metabase.ClientWithResponsesInterface, dashboardId int, data DashboardResourceModel, prior *DashboardResourceModel, operation string) (*metabase.UpdateDashboardResponse, diag.Diagnostics) {
+	updatePayload, diags := makeUpdatePayload(data, prior)
+	if diags.HasError() {
+		return nil, diags
+	}
+
 	updateBuffer, err := json.Marshal(updatePayload)
 	if err != nil {
 		diags.AddError("Error creating the payload for dashboard update.", err.Error())
@@ -642,7 +684,7 @@ func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	updateResp, diags := makeUpdateFromModel(ctx, r.client, int(data.Id.ValueInt64()), *data, "update dashboard")
+	updateResp, diags := makeUpdateFromModel(ctx, r.client, int(data.Id.ValueInt64()), *data, state, "update dashboard")
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
