@@ -373,7 +373,9 @@ func updateCardsFromRawBody(bytes []byte, data *DashboardResourceModel, tabIdMap
 				delete(card, "dashboard_tab_id")
 			} else if tabIdFloat, ok := tabId.(float64); ok {
 				if userTabId, exists := tabIdMapping[int(tabIdFloat)]; exists {
-					card["dashboard_tab_id"] = userTabId
+					// float64, the type JSON numbers decode to: the comparison below runs reflect.DeepEqual against
+					// the decoded `cards_json`, where an int never equals the same tab id.
+					card["dashboard_tab_id"] = float64(userTabId)
 				}
 			}
 		}
@@ -473,8 +475,9 @@ func updateTabsFromRawBody(bytes []byte, data *DashboardResourceModel) (map[int]
 			if i < len(existingTabs) {
 				if userId, ok := existingTabs[i]["id"].(float64); ok {
 					tabIdMapping[int(metabaseId)] = int(userId)
-					// Replace Metabase ID with user ID in the response.
-					tab["id"] = int(userId)
+					// Replace Metabase ID with user ID in the response, kept as the float64 the existing tabs decode to
+					// so the comparison below can see the two as equal.
+					tab["id"] = userId
 				}
 			}
 		}

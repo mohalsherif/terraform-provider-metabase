@@ -99,3 +99,53 @@ func TestWithoutLinkEntityHydrationLeavesInputUntouched(t *testing.T) {
 		t.Errorf("expected the input to be left untouched, got %v", original)
 	}
 }
+
+// The same dashboard with tabs: `cards_json` places both dashcards on the user's tab 1, which Metabase created as
+// tab 412. The tab id comes back as 412 and is mapped back to 1 before the comparison.
+const testTabbedLinkCardsJson = `[{"card_id":null,"col":0,"dashboard_tab_id":1,"parameter_mappings":[],"row":0,"series":[],"size_x":8,"size_y":1,"visualization_settings":{"link":{"entity":{"id":38,"model":"dashboard"}},"virtual_card":{"archived":false,"dataset_query":{},"display":"link","name":null,"visualization_settings":{}}}},{"card_id":942,"col":0,"dashboard_tab_id":1,"parameter_mappings":[],"row":1,"series":[],"size_x":24,"size_y":8,"visualization_settings":{}}]`
+
+const testTabbedLinkCardsResponse = `{"id":38,"name":"[EG] Service Fee Detail Level Receipt","dashcards":[{"id":901,"dashboard_id":38,"dashboard_tab_id":412,"card_id":942,"col":0,"parameter_mappings":[],"row":1,"series":[],"size_x":24,"size_y":8,"visualization_settings":{},"card":{"id":942}},{"id":900,"dashboard_id":38,"dashboard_tab_id":412,"card_id":null,"col":0,"parameter_mappings":[],"row":0,"series":[],"size_x":8,"size_y":1,"visualization_settings":{"link":{"entity":{"collection_id":424,"db_id":null,"description":null,"display":null,"id":38,"model":"dashboard","name":"[EG] Service Fee Detail Level Receipt"}},"virtual_card":{"archived":false,"dataset_query":{},"display":"link","name":null,"visualization_settings":{}}}}]}`
+
+// On a dashboard with tabs, link-card hydration is still ignored. The mapped tab id must compare equal to the one in
+// `cards_json`, which JSON decodes as a float64: written back as an int it never did, every tabbed dashboard with a
+// link card failed the comparison, and the hydrated response reached the state as an inconsistent result.
+func TestUpdateCardsFromRawBodyIgnoresLinkEntityHydrationOnTabbedDashboard(t *testing.T) {
+	data := &DashboardResourceModel{
+		Id:        types.Int64Value(38),
+		Name:      types.StringValue("[EG] Service Fee Detail Level Receipt"),
+		CardsJson: types.StringValue(testTabbedLinkCardsJson),
+	}
+
+	diags := updateCardsFromRawBody([]byte(testTabbedLinkCardsResponse), data, map[int]int{412: 1})
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+
+	if data.CardsJson.ValueString() != testTabbedLinkCardsJson {
+		t.Errorf("expected cards_json to be kept verbatim, got %s", data.CardsJson.ValueString())
+	}
+}
+
+// The tabs' own read-back: the mapped tab id must compare equal to the decoded `tabs_json` too, or the state is
+// rewritten from the response on every read (harmless only while the two happen to serialize identically).
+func TestUpdateTabsFromRawBodyKeepsTabsJsonVerbatim(t *testing.T) {
+	const tabsJson = `[{"name":"Service Fee Detail","id":1},{"name":"Promotion calculation","id":2}]`
+	const response = `{"id":38,"tabs":[{"id":412,"name":"Service Fee Detail","position":0,"dashboard_id":38},{"id":413,"name":"Promotion calculation","position":1,"dashboard_id":38}]}`
+
+	data := &DashboardResourceModel{
+		Id:       types.Int64Value(38),
+		TabsJson: types.StringValue(tabsJson),
+	}
+
+	mapping, diags := updateTabsFromRawBody([]byte(response), data)
+	if diags.HasError() {
+		t.Fatalf("unexpected diagnostics: %v", diags)
+	}
+
+	if data.TabsJson.ValueString() != tabsJson {
+		t.Errorf("expected tabs_json to be kept verbatim, got %s", data.TabsJson.ValueString())
+	}
+	if mapping[412] != 1 || mapping[413] != 2 {
+		t.Errorf("expected Metabase tabs 412/413 to map to 1/2, got %v", mapping)
+	}
+}
